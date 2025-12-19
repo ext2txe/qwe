@@ -73,18 +73,52 @@ class SaveHTMLCommand(ScriptCommand):
         """Extract HTML from browser view.
         
         Args:
-            browser_view: QWebEngineView instance
+            browser_view: QWebEngineView instance or mock view
             
         Returns:
             HTML content as string
         """
-        # This would need to be implemented based on your browser_view structure
-        # For now, this is a placeholder
+        from PySide6.QtCore import QEventLoop
+        
         page = browser_view.page()
-        if page:
-            # Use toHtml (async in WebEngine, might need callback)
-            return page.toHtml()
-        return ""
+        if not page:
+            return ""
+        
+        # Try to get HTML synchronously first (works for mock views)
+        try:
+            html = page.toHtml()
+            # Check if it's a string (mock) or a future/callable (real)
+            if isinstance(html, str):
+                return html
+        except Exception:
+            pass
+        
+        # For real QWebEnginePage, toHtml() requires a callback
+        html_content = []
+        
+        def handle_html(html):
+            """Callback to receive HTML content."""
+            html_content.append(html)
+            loop.quit()
+        
+        try:
+            # Create loop FIRST so callback can reference it
+            loop = QEventLoop()
+            
+            # Request HTML with callback
+            page.toHtml(handle_html)
+            
+            # Run event loop until callback receives the HTML
+            loop.exec()
+            
+            # Return the collected HTML or empty string if nothing was collected
+            return html_content[0] if html_content else ""
+        except Exception as e:
+            # If callback pattern fails, try synchronous (for older versions)
+            try:
+                return page.toHtml()
+            except Exception:
+                return ""
     
     @classmethod
     def from_dict(cls, data: dict):

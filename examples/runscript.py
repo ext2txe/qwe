@@ -17,10 +17,10 @@ script_json = {
     "commands": [
         {"command": "load_url", "url": "https://codaland.com/ip.php"},
         {"command": "save_html", "filename": "page1.html", "path": "./output"},
-        {"command": "pause", "seconds": 3},
+        {"command": "pause", "seconds": 10},
         {"command": "load_url", "url": "https://codaland.com/ipcheck.php"},
         {"command": "save_html", "filename": "page2.html", "path": "./output"},
-        {"command": "pause", "seconds": 2}
+        {"command": "pause", "seconds": 10}
     ]
 }
 
