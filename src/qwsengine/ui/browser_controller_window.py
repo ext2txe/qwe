@@ -23,6 +23,7 @@ except Exception:
 from .settings_dialog import SettingsDialog
 from qwsengine.core.settings import SettingsManager
 from .browser_operations import BrowserOperations  # NEW IMPORT
+from qwsengine.scripting import ScriptExecutor, ExecutionContext
 
 class BrowserControllerWindow(QMainWindow):
     def __init__(self, browser_window=None, parent=None, settings_manager=None):
@@ -43,6 +44,11 @@ class BrowserControllerWindow(QMainWindow):
             status_callback=self.update_status,
             command_callback=self.log_command
         )
+
+        # Script execution setup
+        self.script_executor = None
+        self.execution_context = None
+        self.current_script_file_path = None
 
         self.auto_reload_timer = QTimer()
         self.auto_reload_timer.timeout.connect(self.on_auto_reload_timeout)
@@ -597,6 +603,15 @@ class BrowserControllerWindow(QMainWindow):
         select_btn.setMaximumWidth(80)
         select_btn.clicked.connect(self.on_select_script_file)
         file_layout.addWidget(select_btn)
+        
+        # NEW: Add Run Script button
+        self.run_script_btn = QPushButton("Run Script")
+        self.run_script_btn.setMaximumWidth(90)
+        self.run_script_btn.setToolTip("Execute the selected script file")
+        self.run_script_btn.setEnabled(False)  # Disabled until file is selected
+        self.run_script_btn.clicked.connect(self.on_run_script)
+        file_layout.addWidget(self.run_script_btn)
+        
         layout.addLayout(file_layout)
         
         # Script content display/edit
@@ -612,6 +627,14 @@ class BrowserControllerWindow(QMainWindow):
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.on_save_script_content)
         layout.addWidget(save_btn)
+        
+        # NEW: Progress/status display
+        self.script_progress_label = QLabel("Status: Ready")
+        self.script_progress_label.setAlignment(Qt.AlignCenter)
+        self.script_progress_label.setStyleSheet(
+            "padding: 5px; border: 1px solid #ccc; background-color: #f5f5f5; border-radius: 3px;"
+        )
+        layout.addWidget(self.script_progress_label)
         
         group.setLayout(layout)
         return group
@@ -1054,7 +1077,7 @@ class BrowserControllerWindow(QMainWindow):
             self,
             "Select Script File",
             "",
-            "JavaScript Files (*.js);;Text Files (*.txt);;All Files (*)"
+            "JSON Script Files (*.json);;JavaScript Files (*.js);;Text Files (*.txt);;All Files (*)"
         )
         
         if file_path:
@@ -1069,6 +1092,10 @@ class BrowserControllerWindow(QMainWindow):
                 
                 # Load and display the file content
                 self._load_script_file_content(file_path)
+                
+                # NEW: Enable Run Script button and store file path
+                self.run_script_btn.setEnabled(True)
+                self.current_script_file_path = file_path
                 
             except Exception as e:
                 self.update_status(f"Error selecting script file: {e}", level="ERROR")
@@ -1130,6 +1157,100 @@ class BrowserControllerWindow(QMainWindow):
             
         except Exception as e:
             self.update_status(f"Failed to save script file: {e}", level="ERROR")
+    
+    def on_run_script(self):
+        """Execute the selected script file."""
+        if not self.browser_window:
+            self.update_status("Browser window not available", level="ERROR")
+            self.script_progress_label.setText("Status: No browser")
+            return
+        
+        # Get the current script file path
+        if not self.current_script_file_path:
+            self.update_status("No script file selected", level="WARNING")
+            self.script_progress_label.setText("Status: No file selected")
+            return
+        
+        try:
+            # Disable button during execution
+            self.run_script_btn.setEnabled(False)
+            self.script_progress_label.setText("Status: Loading script...")
+            self.update_status("Executing script...")
+            self.log_command(f"Starting script execution: {self.current_script_file_path}")
+            
+            # Create execution context with browser window and settings
+            self.execution_context = ExecutionContext(
+                browser_window=self.browser_window,
+                settings_manager=self.settings_manager
+            )
+            
+            # Create and configure executor
+            self.script_executor = ScriptExecutor(self.execution_context)
+            
+            # Load the script from file
+            self.script_executor.load_from_file(self.current_script_file_path)
+            
+            # Check for loading errors
+            if self.script_executor.errors:
+                error_msg = f"Errors loading script:\n"
+                for error in self.script_executor.errors:
+                    error_msg += f"  - {error}\n"
+                self.update_status(error_msg, level="ERROR")
+                self.script_progress_label.setText("Status: Load failed")
+                self.log_command("Script load failed")
+                self.run_script_btn.setEnabled(True)
+                return
+            
+            self.log_command(f"Script loaded: {len(self.script_executor.commands)} commands")
+            
+            # Define progress callback
+            def on_progress(current, total, description):
+                progress = int((current / total * 100)) if total > 0 else 0
+                self.script_progress_label.setText(
+                    f"Status: [{current+1}/{total}] {description}"
+                )
+                self.update_status(f"Executing: {description}")
+            
+            # Execute the script
+            success = self.script_executor.execute(on_progress=on_progress)
+            
+            # Handle results
+            if success:
+                self.update_status("✓ Script executed successfully!")
+                self.script_progress_label.setText("Status: Completed successfully")
+                self.log_command("Script execution completed successfully")
+            else:
+                errors = self.script_executor.get_errors()
+                self.update_status(
+                    f"Script completed with {len(errors)} error(s)",
+                    level="WARNING"
+                )
+                self.script_progress_label.setText(f"Status: {len(errors)} error(s)")
+                self.log_command(f"Script completed with {len(errors)} error(s):")
+                for idx, cmd, error in errors:
+                    self.log_command(f"  [{idx}] {cmd}: {error}")
+            
+            # Display execution logs in the command log
+            logs = self.execution_context.get_logs()
+            for log in logs:
+                self.log_command(log)
+            
+        except FileNotFoundError as e:
+            self.update_status(f"Script file not found: {e}", level="ERROR")
+            self.script_progress_label.setText("Status: File not found")
+            self.log_command(f"Script file not found: {e}")
+        except ValueError as e:
+            self.update_status(f"Invalid script format: {e}", level="ERROR")
+            self.script_progress_label.setText("Status: Invalid format")
+            self.log_command(f"Invalid script format: {e}")
+        except Exception as e:
+            self.update_status(f"Error executing script: {e}", level="ERROR")
+            self.script_progress_label.setText("Status: Execution failed")
+            self.log_command(f"Script execution error: {e}")
+        finally:
+            # Re-enable button
+            self.run_script_btn.setEnabled(True)
+        
         
     # --- User Agent functions ------------------------------------------------
     def on_apply_user_agent(self):

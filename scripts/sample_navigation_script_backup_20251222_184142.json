@@ -1,0 +1,12 @@
+{
+  "name": "Sample Navigation Script",
+  "version": "1.0",
+  "commands": [
+		{"command": "load_url", "url": "https://codaland.com/ip.php"},
+		{"command": "pause", "seconds": 5},
+		{"command": "load_url", "url": "https://codaland.com/ipcheck.php"},
+		{"command": "pause", "seconds": 5},
+		{"command": "load_url", "url": "https://google.com"},
+		{"command": "pause", "seconds": 5},
+  ]
+ }

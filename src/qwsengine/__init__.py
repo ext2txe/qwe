@@ -1,7 +1,7 @@
 """QWSEngine - Qt Web Server Engine."""
 
-__version__ = "0.1.2"
-__author__ = "Your Name"
+__version__ = "0.1.3"
+__author__ = "codaland.com"
 
 # Optional: Expose main modules for convenience
 # Uncomment what you actually use:
