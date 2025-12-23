@@ -1,19 +1,21 @@
-"""Save HTML command with timestamp."""
+"""Save Text command with timestamp."""
 
 from pathlib import Path
 from datetime import datetime
 from ..command import ScriptCommand
 
 
-class SaveHTMLCommand(ScriptCommand):
-    """Save current page HTML to file with timestamp.
+class SaveTextCommand(ScriptCommand):
+    """Save current page text content to file with timestamp.
     
-    Filename format: YYYYMMDDHHMMSS.milliseconds[_TAG].html
+    Extracts rendered text content (no HTML markup).
+    
+    Filename format: YYYYMMDDHHMMSS.milliseconds[_TAG].txt
     
     Examples:
-        20251222185623.456.html              # No tag
-        20251222185623.456_panda.html        # With tag
-        20251222185623.456_search_results.html  # Tag with underscores
+        20251222185623.456.txt                  # No tag
+        20251222185623.456_results.txt          # With tag
+        20251222185623.456_article_content.txt  # Tag with underscores
     
     Parameters:
         tag (str): Optional descriptive tag for filename
@@ -21,7 +23,7 @@ class SaveHTMLCommand(ScriptCommand):
     """
     
     def __init__(self, tag: str = None, folder: str = None):
-        """Initialize SaveHTML command.
+        """Initialize SaveText command.
         
         Args:
             tag: Optional tag to append to filename
@@ -62,16 +64,16 @@ class SaveHTMLCommand(ScriptCommand):
             tag: Optional tag to include in filename
             
         Returns:
-            Filename like: 20251222185623.456.html or 20251222185623.456_panda.html
+            Filename like: 20251222185623.456.txt or 20251222185623.456_results.txt
         """
         now = datetime.now()
         timestamp = now.strftime('%Y%m%d%H%M%S')
         milliseconds = now.microsecond // 1000
         
         if tag:
-            return f"{timestamp}.{milliseconds:03d}_{tag}.html"
+            return f"{timestamp}.{milliseconds:03d}_{tag}.txt"
         else:
-            return f"{timestamp}.{milliseconds:03d}.html"
+            return f"{timestamp}.{milliseconds:03d}.txt"
     
     def execute(self, context):
         """Execute the command.
@@ -100,26 +102,28 @@ class SaveHTMLCommand(ScriptCommand):
             output_dir = Path(folder)
             output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Get HTML and save
-            html = self._extract_html(context)
+            # Get text and save
+            text = self._extract_text(context)
             filepath = output_dir / filename
             
             with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(html)
+                f.write(text)
             
-            context.log(f"Saved HTML to: {filepath}")
+            context.log(f"Saved TEXT to: {filepath}")
             
         except Exception as e:
-            raise RuntimeError(f"Failed to save HTML: {e}")
+            raise RuntimeError(f"Failed to save text: {e}")
     
-    def _extract_html(self, context):
-        """Extract HTML from browser view.
+    def _extract_text(self, context):
+        """Extract text content from page.
+        
+        Uses page's rendered text content (innerText).
         
         Args:
             context: ExecutionContext
             
         Returns:
-            HTML content as string
+            Text content as string
         """
         from PySide6.QtCore import QEventLoop
         
@@ -135,37 +139,31 @@ class SaveHTMLCommand(ScriptCommand):
         if not page:
             raise RuntimeError("No page available")
         
-        # Try to get HTML synchronously first (works for mock views)
-        try:
-            html = page.toHtml()
-            # Check if it's a string (mock) or a future/callable (real)
-            if isinstance(html, str):
-                return html
-        except Exception:
-            pass
+        text_content = []
         
-        # For real QWebEnginePage, toHtml() requires a callback
-        html_content = []
-        
-        def handle_html(html):
-            """Callback to receive HTML content."""
-            html_content.append(html)
+        def handle_text(text):
+            """Callback to receive text content."""
+            text_content.append(text)
             loop.quit()
         
         try:
+            # JavaScript to extract page text
+            script = "return document.documentElement.innerText;"
+            
             # Create loop first so callback can reference it
             loop = QEventLoop()
             
-            # Request HTML with callback
-            page.toHtml(handle_html)
+            # Run JavaScript
+            page.runJavaScript(script, handle_text)
             
-            # Run event loop until callback receives the HTML
+            # Run event loop until callback receives the text
             loop.exec()
             
-            # Return the collected HTML or empty string if nothing was collected
-            return html_content[0] if html_content else ""
+            # Return the collected text
+            return text_content[0] if text_content else ""
+        
         except Exception as e:
-            context.log(f"Error extracting HTML: {e}", level="WARNING")
+            context.log(f"Error extracting text: {e}", level="WARNING")
             return ""
     
     @classmethod
@@ -176,7 +174,7 @@ class SaveHTMLCommand(ScriptCommand):
             data: Dictionary with optional 'tag' and 'folder' keys
             
         Returns:
-            SaveHTMLCommand instance
+            SaveTextCommand instance
         """
         tag = data.get('tag')
         folder = data.get('folder')
@@ -189,13 +187,13 @@ class SaveHTMLCommand(ScriptCommand):
             Dictionary representation
         """
         return {
-            'command': 'save_html',
+            'command': 'save_text',
             'tag': self.tag
         }
     
     def __str__(self):
         """String representation for logging."""
         if self.tag:
-            return f"SaveHTML(tag={self.tag})"
+            return f"SaveText(tag={self.tag})"
         else:
-            return "SaveHTML()"
+            return "SaveText()"
