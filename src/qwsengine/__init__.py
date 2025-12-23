@@ -1,6 +1,6 @@
 """QWSEngine - Qt Web Server Engine."""
 
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 __author__ = "codaland.com"
 
 # Optional: Expose main modules for convenience
