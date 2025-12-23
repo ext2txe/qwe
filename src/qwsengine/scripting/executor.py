@@ -61,25 +61,55 @@ class ScriptExecutor:
                 self.context.log(error, level="ERROR")
     
     def load_from_file(self, filepath: str):
-        """Load script from JSON file.
+        """Load script from file (auto-detects format).
+        
+        Supports:
+        - .json files (JSON format)
+        - .script files (simple text format)
         
         Args:
-            filepath: Path to JSON file
+            filepath: Path to script file
             
         Raises:
             FileNotFoundError: If file not found
-            ValueError: If JSON is invalid
+            ValueError: If format is invalid
         """
         import json
+        from pathlib import Path
+        
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
-            self.load_from_json(json_data)
+            file_path = Path(filepath)
+            extension = file_path.suffix.lower()
+            
+            if extension == '.json':
+                # JSON format
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+                self.load_from_json(json_data)
+            else:
+                # Simple format (.script, .txt, or other)
+                try:
+                    from .simple_parser import parse_simple_script
+                except ImportError:
+                    try:
+                        from qwsengine.scripting.simple_parser import parse_simple_script
+                    except ImportError:
+                        raise ImportError("simple_parser module not found")
+                
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                
+                json_data = parse_simple_script(text)
+                self.load_from_json(json_data)
+            
             self.context.log(f"Loaded script from: {filepath}")
+            
         except FileNotFoundError:
             raise FileNotFoundError(f"Script file not found: {filepath}")
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in {filepath}: {e}")
+        except ValueError as e:
+            raise ValueError(f"Invalid script format in {filepath}: {e}")
     
     def save_to_file(self, filepath: str):
         """Save current script to JSON file.

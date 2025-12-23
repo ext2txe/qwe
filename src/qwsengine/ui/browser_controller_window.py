@@ -1110,14 +1110,23 @@ class BrowserControllerWindow(QMainWindow):
             self.script_file_content.setPlainText(content)
             self.script_file_path_label.setText(file_path)
             self.script_file_path_label.setStyleSheet("color: white; font-style: normal;")
+            
+            # Set the path so Run Script can use it
+            self.current_script_file_path = file_path
+            
+            # Enable Run Script button
+            self.run_script_btn.setEnabled(True)
+            
             self.update_status(f"Loaded: {file_path}")
             
         except FileNotFoundError:
             self.update_status(f"Script file not found: {file_path}", level="ERROR")
             self.script_file_path_label.setText(f"(File not found: {file_path})")
             self.script_file_path_label.setStyleSheet("color: red; font-style: italic;")
+            self.run_script_btn.setEnabled(False)
         except Exception as e:
             self.update_status(f"Failed to read script file: {e}", level="ERROR")
+            self.run_script_btn.setEnabled(False)
     
     def on_save_script_content(self):
         """Save script content to file, backing up the original with timestamp."""
