@@ -1,4 +1,4 @@
-"""Simple script format parser.
+"""Simple script format parser for QWSEngine.
 
 Converts simple text format to JSON for script execution.
 
@@ -7,10 +7,8 @@ Simple Format Examples:
     wait 5
     SAVE HTML panda
     SAVE TEXT results
-    SAVE HTML "google search"
 """
 
-import re
 from typing import List, Dict, Tuple
 
 
@@ -235,25 +233,3 @@ def parse_simple_script(text: str) -> Dict:
     """
     parser = SimpleScriptParser()
     return parser.parse(text)
-
-
-# Example usage:
-if __name__ == '__main__':
-    example_script = """
-    # Example script
-    load https://example.com
-    wait 2
-    SAVE HTML example_page
-    
-    load https://google.com
-    wait 3
-    SAVE HTML google
-    SAVE TEXT google_text
-    """
-    
-    try:
-        result = parse_simple_script(example_script)
-        import json
-        print(json.dumps(result, indent=2))
-    except ValueError as e:
-        print(f"Error: {e}")

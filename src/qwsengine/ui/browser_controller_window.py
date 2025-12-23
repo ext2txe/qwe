@@ -1077,7 +1077,7 @@ class BrowserControllerWindow(QMainWindow):
             self,
             "Select Script File",
             "",
-            "JSON Script Files (*.json);;JavaScript Files (*.js);;Text Files (*.txt);;All Files (*)"
+            "All Script Files (*.json *.script);;Script Files (*.script);;JSON Files (*.json);;Text Files (*.txt);;All Files (*)"
         )
         
         if file_path:

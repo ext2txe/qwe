@@ -1,6 +1,8 @@
-"""Script executor - orchestrates command execution."""
+"""Script executor - orchestrates command execution with format auto-detection."""
 
 import time
+import json
+from pathlib import Path
 from typing import Callable
 
 from .registry import CommandRegistry
@@ -10,7 +12,8 @@ class ScriptExecutor:
     """Executes a sequence of commands from a script.
     
     Features:
-    - Load scripts from JSON
+    - Load scripts from JSON (.json) or simple format (.script)
+    - Auto-detect format by file extension
     - Execute commands sequentially
     - Handle errors (stop or continue)
     - Pause/resume execution
@@ -30,6 +33,51 @@ class ScriptExecutor:
         self.is_running = False
         self.is_paused = False
         self.errors = []
+    
+    def load_from_file(self, filepath: str):
+        """Load script from file (auto-detects format).
+        
+        Supports:
+        - .json files (JSON format)
+        - .script files (simple text format)
+        - .txt files (attempts simple text format)
+        
+        Args:
+            filepath: Path to script file
+            
+        Raises:
+            FileNotFoundError: If file not found
+            ValueError: If format is invalid
+        """
+        try:
+            file_path = Path(filepath)
+            
+            # Detect format by extension
+            extension = file_path.suffix.lower()
+            
+            if extension == '.json':
+                # JSON format
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+                self.load_from_json(json_data)
+            else:
+                # Simple format (.script, .txt, or other)
+                from .simple_parser import parse_simple_script
+                
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                
+                json_data = parse_simple_script(text)
+                self.load_from_json(json_data)
+            
+            self.context.log(f"Loaded script from: {filepath}")
+            
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Script file not found: {filepath}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in {filepath}: {e}")
+        except ValueError as e:
+            raise ValueError(f"Invalid script format in {filepath}: {e}")
     
     def load_from_json(self, json_data: dict):
         """Load script from JSON data.
@@ -60,26 +108,20 @@ class ScriptExecutor:
                 self.errors.append(error)
                 self.context.log(error, level="ERROR")
     
-    def load_from_file(self, filepath: str):
-        """Load script from JSON file.
+    def load_from_json_string(self, json_string: str):
+        """Load script from JSON string.
         
         Args:
-            filepath: Path to JSON file
+            json_string: JSON formatted string
             
         Raises:
-            FileNotFoundError: If file not found
             ValueError: If JSON is invalid
         """
-        import json
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
+            json_data = json.loads(json_string)
             self.load_from_json(json_data)
-            self.context.log(f"Loaded script from: {filepath}")
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Script file not found: {filepath}")
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in {filepath}: {e}")
+            raise ValueError(f"Invalid JSON: {e}")
     
     def save_to_file(self, filepath: str):
         """Save current script to JSON file.
@@ -87,7 +129,6 @@ class ScriptExecutor:
         Args:
             filepath: Path where to save file
         """
-        import json
         script_data = {
             'version': '1.0',
             'commands': [cmd.to_dict() for cmd in self.commands]
