@@ -365,8 +365,14 @@ class SettingsDialog(QDialog):
         log_file_group = QGroupBox("Log Files")
         log_file_layout = QVBoxLayout()
         
-        # Log directory
-        log_dir = self.settings_manager.get_log_dir() if self.settings_manager else None
+        # Log directory - safely handle missing attribute
+        log_dir = None
+        try:
+            if self.settings_manager and hasattr(self.settings_manager, 'get_log_dir'):
+                log_dir = self.settings_manager.get_log_dir()
+        except (AttributeError, Exception):
+            pass
+            
         if log_dir:
             dir_layout = QHBoxLayout()
             dir_layout.addWidget(QLabel("Log Directory:"))
@@ -379,12 +385,19 @@ class SettingsDialog(QDialog):
             dir_layout.addStretch()
             log_file_layout.addLayout(dir_layout)
         
-        # Current log file
-        log_file = self.settings_manager.get_log_file_path() if self.settings_manager else None
+        # Current log file - safely handle missing attribute
+        log_file = None
+        try:
+            if self.settings_manager and hasattr(self.settings_manager, 'get_log_file_path'):
+                log_file = self.settings_manager.get_log_file_path()
+        except (AttributeError, Exception):
+            pass
+            
         if log_file:
             file_layout = QHBoxLayout()
             file_layout.addWidget(QLabel("Current Log File:"))
-            file_label = QLabel(str(log_file.name))
+            file_name = str(log_file.name) if hasattr(log_file, 'name') else str(log_file)
+            file_label = QLabel(file_name)
             file_label.setStyleSheet("color: gray; font-size: 9px;")
             file_label.setWordWrap(True)
             file_layout.addWidget(file_label)
@@ -395,6 +408,9 @@ class SettingsDialog(QDialog):
         open_log_btn = QPushButton("Open Log Directory")
         open_log_btn.setToolTip("Open folder containing log files")
         open_log_btn.clicked.connect(self._open_log_directory)
+        if not log_dir:
+            open_log_btn.setEnabled(False)
+            open_log_btn.setToolTip("Log directory not available")
         log_file_layout.addWidget(open_log_btn)
         
         log_file_group.setLayout(log_file_layout)
@@ -723,17 +739,42 @@ class SettingsDialog(QDialog):
         if not self.settings_manager:
             return
         
-        log_dir = self.settings_manager.get_log_dir()
-        if log_dir and log_dir.exists():
+        # Safely get log directory
+        log_dir = None
+        try:
+            if hasattr(self.settings_manager, 'get_log_dir'):
+                log_dir = self.settings_manager.get_log_dir()
+        except (AttributeError, Exception):
+            QMessageBox.warning(
+                self,
+                "Not Available",
+                "Log directory information is not available."
+            )
+            return
+            
+        if log_dir and hasattr(log_dir, 'exists') and log_dir.exists():
             import subprocess
             import sys
             
-            if sys.platform == "win32":
-                subprocess.run(["explorer", str(log_dir)])
-            elif sys.platform == "darwin":
-                subprocess.run(["open", str(log_dir)])
-            else:  # Linux
-                subprocess.run(["xdg-open", str(log_dir)])
+            try:
+                if sys.platform == "win32":
+                    subprocess.run(["explorer", str(log_dir)])
+                elif sys.platform == "darwin":
+                    subprocess.run(["open", str(log_dir)])
+                else:  # Linux
+                    subprocess.run(["xdg-open", str(log_dir)])
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    "Error",
+                    f"Could not open log directory: {e}"
+                )
+        else:
+            QMessageBox.information(
+                self,
+                "Not Available",
+                "Log directory not found or not configured."
+            )
     
     def _reset_to_defaults(self):
         """Reset all settings to defaults."""
