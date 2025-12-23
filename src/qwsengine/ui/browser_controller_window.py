@@ -1103,28 +1103,20 @@ class BrowserControllerWindow(QMainWindow):
     def _load_script_file_content(self, file_path):
         """Load script file content into the editor."""
         try:
-            print(f"[DEBUG] Loading file: {file_path}")
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
-            print(f"[DEBUG] File content length: {len(content)}")
             
             # Update UI
             self.script_file_content.setPlainText(content)
             self.script_file_path_label.setText(file_path)
             self.script_file_path_label.setStyleSheet("color: white; font-style: normal;")
             self.update_status(f"Loaded: {file_path}")
-            print(f"[DEBUG] File loaded and displayed successfully")
             
         except FileNotFoundError:
-            print(f"[ERROR] File not found: {file_path}")
             self.update_status(f"Script file not found: {file_path}", level="ERROR")
             self.script_file_path_label.setText(f"(File not found: {file_path})")
             self.script_file_path_label.setStyleSheet("color: red; font-style: italic;")
         except Exception as e:
-            print(f"[ERROR] Failed to read script file: {e}")
-            import traceback
-            traceback.print_exc()
             self.update_status(f"Failed to read script file: {e}", level="ERROR")
     
     def on_save_script_content(self):
@@ -1168,22 +1160,16 @@ class BrowserControllerWindow(QMainWindow):
     
     def on_run_script(self):
         """Execute the selected script file."""
-        print("[DEBUG] on_run_script called")
-        
         if not self.browser_window:
-            print("[ERROR] No browser window")
             self.update_status("Browser window not available", level="ERROR")
             self.script_progress_label.setText("Status: No browser")
             return
         
         # Get the current script file path
         if not self.current_script_file_path:
-            print("[ERROR] No script file path set")
             self.update_status("No script file selected", level="WARNING")
             self.script_progress_label.setText("Status: No file selected")
             return
-        
-        print(f"[DEBUG] Script path: {self.current_script_file_path}")
         
         try:
             # Disable button during execution
@@ -1197,35 +1183,20 @@ class BrowserControllerWindow(QMainWindow):
                 browser_window=self.browser_window,
                 settings_manager=self.settings_manager
             )
-            print("[DEBUG] ExecutionContext created")
             
             # Create and configure executor
             self.script_executor = ScriptExecutor(self.execution_context)
-            print("[DEBUG] ScriptExecutor created")
             
             # Load the script from file
-            print("[DEBUG] Loading script from file...")
             self.script_executor.load_from_file(self.current_script_file_path)
-            print(f"[DEBUG] Script loaded, {len(self.script_executor.commands)} commands")
             
             # Check for loading errors
             if self.script_executor.errors:
-                print(f"[ERROR] Load errors: {self.script_executor.errors}")
-                
-                # Build error message - make it selectable
-                error_lines = ["Errors loading script:"]
+                error_msg = f"Errors loading script:\n"
                 for error in self.script_executor.errors:
-                    error_lines.append(f"  * {error}")
-                error_msg = "\n".join(error_lines)
-                
-                # Display in both status and log (for selection)
+                    error_msg += f"  - {error}\n"
                 self.update_status(error_msg, level="ERROR")
                 self.script_progress_label.setText("Status: Load failed")
-                
-                # Display in command log (selectable)
-                self.log_output.setText(error_msg)
-                self.log_output.setStyleSheet("color: red; background-color: #ffe0e0;")
-                
                 self.log_command("Script load failed")
                 self.run_script_btn.setEnabled(True)
                 return
@@ -1241,35 +1212,28 @@ class BrowserControllerWindow(QMainWindow):
                 self.update_status(f"Executing: {description}")
             
             # Execute the script
-            print("[DEBUG] Starting execution...")
             success = self.script_executor.execute(on_progress=on_progress)
-            print(f"[DEBUG] Execution complete, success={success}")
             
             # Handle results
             if success:
                 self.update_status("✓ Script executed successfully!")
                 self.script_progress_label.setText("Status: Completed successfully")
                 self.log_command("Script execution completed successfully")
-                self.log_output.setStyleSheet("color: #006600; background-color: #e6ffe6;")
             else:
                 errors = self.script_executor.get_errors()
-                
-                # Build error message for selection
                 error_lines = [f"Script completed with {len(errors)} error(s):"]
                 for idx, cmd, error in errors:
                     error_lines.append(f"  [{idx}] {cmd}: {error}")
                 error_msg = "\n".join(error_lines)
+                
+                self.log_output.setText(error_msg)
+                self.log_output.setStyleSheet("color: #ff6600; background-color: #fff5e6;")
                 
                 self.update_status(
                     f"Script completed with {len(errors)} error(s)",
                     level="WARNING"
                 )
                 self.script_progress_label.setText(f"Status: {len(errors)} error(s)")
-                
-                # Display in log output (selectable)
-                self.log_output.setText(error_msg)
-                self.log_output.setStyleSheet("color: #ff6600; background-color: #fff5e6;")
-                
                 self.log_command(error_msg)
             
             # Display execution logs in the command log
@@ -1278,35 +1242,31 @@ class BrowserControllerWindow(QMainWindow):
                 self.log_command(log)
             
         except FileNotFoundError as e:
-            print(f"[ERROR] File not found: {e}")
             error_msg = f"Script file not found:\n{e}"
+            self.log_output.setText(error_msg)
+            self.log_output.setStyleSheet("color: red; background-color: #ffe0e0;")
             self.update_status(error_msg, level="ERROR")
             self.script_progress_label.setText("Status: File not found")
-            self.log_output.setText(error_msg)
-            self.log_output.setStyleSheet("color: red; background-color: #ffe0e0;")
             self.log_command(error_msg)
         except ValueError as e:
-            print(f"[ERROR] Invalid format: {e}")
             error_msg = f"Invalid script format:\n{e}"
+            self.log_output.setText(error_msg)
+            self.log_output.setStyleSheet("color: red; background-color: #ffe0e0;")
             self.update_status(error_msg, level="ERROR")
             self.script_progress_label.setText("Status: Invalid format")
-            self.log_output.setText(error_msg)
-            self.log_output.setStyleSheet("color: red; background-color: #ffe0e0;")
             self.log_command(error_msg)
         except Exception as e:
-            print(f"[ERROR] Execution error: {e}")
             import traceback
-            traceback.print_exc()
-            error_msg = f"Error executing script:\n{e}\n\nTraceback:\n{traceback.format_exc()}"
-            self.update_status(f"Error executing script: {e}", level="ERROR")
-            self.script_progress_label.setText("Status: Execution failed")
+            tb_text = traceback.format_exc()
+            error_msg = f"Error executing script:\n{e}\n\nTraceback:\n{tb_text}"
             self.log_output.setText(error_msg)
             self.log_output.setStyleSheet("color: red; background-color: #ffe0e0;")
+            self.update_status(f"Error executing script: {e}", level="ERROR")
+            self.script_progress_label.setText("Status: Execution failed")
             self.log_command(error_msg)
         finally:
             # Re-enable button
             self.run_script_btn.setEnabled(True)
-            print("[DEBUG] on_run_script completed")
         
         
     # --- User Agent functions ------------------------------------------------
